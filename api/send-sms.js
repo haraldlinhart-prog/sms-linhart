@@ -1,4 +1,4 @@
-// api/send-sms.js — Vercel Serverless Function (Node.js runtime)
+// api/send-sms.js v2 — Vercel Serverless Function (Node.js runtime)
 export const runtime = 'nodejs';
 
 export default async function handler(req, res) {
