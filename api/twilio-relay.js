@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       body: form.toString(),
     });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) return res.status(r.status).json({ ok: false, error: j.message || 'Twilio-Fehler', code: j.code });
+    if (!r.ok) return res.status(200).json({ ok: false, sent: false, twilio_status: r.status, error: j.message || 'Twilio-Fehler', code: j.code });
     return res.status(200).json({ ok: true, sent: true, sid: j.sid, status: j.status });
   } catch (e) {
     return res.status(502).json({ ok: false, error: 'Twilio nicht erreichbar' });
