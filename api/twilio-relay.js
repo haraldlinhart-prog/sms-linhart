@@ -4,8 +4,12 @@
 // mehr in URL/Headern. Die Twilio Messages API akzeptiert aber nur Formulardaten.
 // Dieses Relay nimmt den JSON-Body (From/To/Body) entgegen, setzt bei Bedarf die
 // Anrufernummer aus `customer_phone` ein und reicht die Nachricht als Formular an Twilio
-// weiter. Die Twilio-Zugangsdaten bleiben im Tool (Authorization-Header) und werden nur
-// durchgereicht — hier wird nichts gespeichert. Funktioniert mit Famulor 1.0 und 2.0.
+// weiter. Zwei Arten der Anmeldung:
+//  1) Famulor 1.0: Twilio-Zugangsdaten im Authorization-Header, sid in der URL (Durchreichen).
+//  2) Famulor 2.0: ?key=<RELAY_KEY> in der URL; dann nutzt das Relay die serverseitig
+//     hinterlegten TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN. Ohne gültigen Schlüssel: 401.
+// Funktioniert mit Famulor 1.0 und 2.0.
+import { timingSafeEqual } from 'crypto';
 export const runtime = 'nodejs';
 
 const pick = (obj, ...keys) => {
@@ -34,9 +38,20 @@ async function readBody(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const sid = String(req.query.sid || '');
+  let sid = String(req.query.sid || '');
+  let auth = req.headers.authorization || '';
+  const key = String(req.query.key || '');
+  const relayKey = process.env.RELAY_KEY || '';
+  if (key) {
+    if (!relayKey || key.length !== relayKey.length || !timingSafeEqual(Buffer.from(key), Buffer.from(relayKey))) {
+      return res.status(401).json({ ok: false, error: 'Invalid key' });
+    }
+    sid = process.env.TWILIO_ACCOUNT_SID || '';
+    const token = process.env.TWILIO_AUTH_TOKEN || '';
+    if (!sid || !token) return res.status(500).json({ ok: false, error: 'Relay not configured' });
+    auth = 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64');
+  }
   if (!/^AC[0-9a-f]{32}$/i.test(sid)) return res.status(400).json({ ok: false, error: 'Missing or invalid sid' });
-  const auth = req.headers.authorization || '';
   if (!/^Basic\s+\S+/i.test(auth)) return res.status(401).json({ ok: false, error: 'Missing Authorization' });
 
   const b = await readBody(req);
